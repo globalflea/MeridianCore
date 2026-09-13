@@ -1,3 +1,4 @@
+// Copyright (c) 2026 the Meridian project authors
 //
 // Splitter.swift
 // MeridianUI
@@ -24,7 +25,7 @@ public enum SplitterOrientation: Sendable, Equatable {
 /// A universal, interactive divider line providing smooth resize manipulation between adjacent views.
 ///
 /// Designed to provide an ultra-clean visual line (typically 1pt) while providing a comfortable,
-/// expanded mouse and touch target (e.g., 8pt) to eliminate missed grab attempts.
+/// expanded mouse and touch target (e.g., 8–12pt) to eliminate missed grab attempts.
 public struct Splitter: View {
     public let orientation: SplitterOrientation
     public let thickness: CGFloat
@@ -37,6 +38,9 @@ public struct Splitter: View {
     @State private var isHovered: Bool = false
     @State private var isDragging: Bool = false
     @State private var lastDragTranslation: CGFloat = 0
+    #if os(macOS)
+    @State private var cursorPushed: Bool = false
+    #endif
 
     /// Initializes a generic `Splitter`.
     ///
@@ -87,17 +91,19 @@ public struct Splitter: View {
             height: orientation == .horizontal ? hitArea : nil
         )
         .onHover { hovering in
+            guard !isDragging else { return }
             isHovered = hovering
             #if os(macOS)
             if hovering {
-                switch orientation {
-                case .horizontal:
-                    NSCursor.resizeUpDown.push()
-                case .vertical:
-                    NSCursor.resizeLeftRight.push()
+                if !cursorPushed {
+                    pushCursor()
+                    cursorPushed = true
                 }
             } else {
-                NSCursor.pop()
+                if cursorPushed {
+                    popCursor()
+                    cursorPushed = false
+                }
             }
             #endif
         }
@@ -108,11 +114,17 @@ public struct Splitter: View {
                 }
         )
         .simultaneousGesture(
-            DragGesture(minimumDistance: 1)
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
                     if !isDragging {
                         isDragging = true
                         lastDragTranslation = 0
+                        #if os(macOS)
+                        if !cursorPushed {
+                            pushCursor()
+                            cursorPushed = true
+                        }
+                        #endif
                     }
 
                     let currentTranslation: CGFloat
@@ -130,7 +142,29 @@ public struct Splitter: View {
                 .onEnded { _ in
                     isDragging = false
                     lastDragTranslation = 0
+                    #if os(macOS)
+                    if !isHovered && cursorPushed {
+                        popCursor()
+                        cursorPushed = false
+                    }
+                    #endif
                 }
         )
     }
+
+    #if os(macOS)
+    private func pushCursor() {
+        switch orientation {
+        case .horizontal:
+            NSCursor.resizeUpDown.push()
+        case .vertical:
+            NSCursor.resizeLeftRight.push()
+        }
+    }
+
+    private func popCursor() {
+        NSCursor.pop()
+    }
+    #endif
 }
+
