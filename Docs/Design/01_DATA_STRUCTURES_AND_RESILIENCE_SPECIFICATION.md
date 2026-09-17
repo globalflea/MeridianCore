@@ -105,6 +105,29 @@ Every record written to disk is framed by a 32-byte header guaranteeing bit-leve
 
 ---
 
+### 3.3 Decoupled External Persistence Sinks & Centralized Distributed Playback
+
+#### 1. Analytical Critique: The "WAL-over-a-WAL" Paradox & Local SQLite Redundancy
+Extending a Write-Ahead Log to persist directly into an external database presents critical architectural trade-offs:
+- **The "WAL-over-a-WAL" Latency Collapse**: Synchronously writing WAL records across a network socket to PostgreSQL forces every write through TCP framing, SQL parsing, transaction locks, and PostgreSQL's own internal WAL (`pg_wal`) `fsync`. Write latency degrades from **$\sim 20\,\mu\text{s}$** (local NVMe sequential append) to **$2\text{--}15\,\text{ms}$**, collapsing write throughput by $100\times$ to $500\times$.
+- **Inverted Failure Domains**: A local engine must remain autonomous. If the database connection pool exhausts or a network partition occurs, a synchronously coupled engine freezes and drops incoming requests.
+- **Local SQLite Redundancy**: Mirroring binary WAL records to a local SQLite database on the same disk doubles write I/O and inflates storage footprints by $>2.5\times$ without providing off-box disaster recovery or high availability, while duplicating Meridian's built-in in-memory [`WALIndex`](#) B-Tree.
+
+#### 2. The Decoupled Architecture: Fast Path + Asynchronous Persistence Sink
+MeridianCore resolves this through an asynchronous, decoupled persistence tier:
+1. **Local NVMe Fast Path**: [`SegmentedWALWriter`](#) writes compact 32-byte binary frames locally at native disk speed with zero network dependencies.
+2. **Actor-Isolated Micro-Batching (`WALBatchCoordinator`)**: Subscribes to the record stream, accumulating records into an in-memory buffer until either a record count threshold (`maxBatchSize`, e.g. 500) or an elapsed time interval (`flushInterval`, e.g. 100ms) is reached.
+3. **Pluggable Persistence Sink (`WALPersistenceSink`)**: A clean Service Provider Interface (SPI) implemented by external storage adapters (PostgreSQL, ClickHouse, S3 object storage) and embedded SQL proxies ([`SQLiteWALSink`](#)).
+4. **Idempotency & Sequence Checkpointing**: Every record carries a monotonic `sequenceNumber` and `crc64` checksum. Sinks insert records with `ON CONFLICT (sequence_number) DO NOTHING` (or composite `(node_id, sequence_number)`), while tracking `lastCommittedSequenceNumber` for safe resume on restart.
+5. **Embedded SQL Database Proxy (`SQLiteWALSink`)**: Leverages Darwin's native `libsqlite3` with zero third-party dependencies to serve as an in-process SQL proxy for hermetic integration testing, CI validation, and embedded analytics without requiring Docker or external PostgreSQL servers.
+
+#### 3. Distributed Flight Recorder & Multi-Node Playback
+In a distributed topology with $N$ independent nodes generating local WAL files:
+- **Node Namespace Isolation**: Each node annotates its stream with a unique `nodeId`, ensuring sequence numbers do not collide in the centralized repository.
+- **$K$-Way Chronological Merge**: For centralized timeline scrubbing and controlled playback, [`WALPlaybackController`](#) merges $K$ active node streams using Meridian's internal [`PriorityQueue`](#) ($O(\log K)$ min-heap by timestamp), yielding an interleaved, globally ordered event stream.
+
+---
+
 ## 4. Multi-Perspective Architectural Diagrams
 
 ### 4.1 UML Class Diagram (`classDiagram`)
@@ -175,10 +198,65 @@ classDiagram
         +resetBaseline(seq: UInt64)
     }
 
+    class WALPersistenceSink {
+        <<protocol>>
+        +persist(records: List~WALRecord~) async throws
+        +lastCommittedSequenceNumber() async throws UInt64?
+    }
+
+    class InMemoryWALSink {
+        <<actor>>
+        +persistedRecords: List~WALRecord~
+        +persist(records: List~WALRecord~) async throws
+        +lastCommittedSequenceNumber() async throws UInt64?
+        +clear()
+    }
+
+    class SQLiteWALSink {
+        <<actor>>
+        +databasePath: String
+        +defaultNodeId: String
+        +open() throws
+        +persist(records: List~WALRecord~) async throws
+        +persist(distributedRecords: List~DistributedWALRecord~) async throws
+        +queryRecords(nodeId: String?, fromSeq: UInt64?, toSeq: UInt64?, startTime: Date?, endTime: Date?) async throws List~WALRecord~
+        +queryDistributedRecords(nodeId: String?, fromSeq: UInt64?, toSeq: UInt64?, startTime: Date?, endTime: Date?) async throws List~DistributedWALRecord~
+        +lastCommittedSequenceNumber() async throws UInt64?
+        +count(nodeId: String?) async throws Int
+        +close() throws
+    }
+
+    class WALBatchCoordinator {
+        <<actor>>
+        +maxBatchSize: Int
+        +flushInterval: TimeInterval
+        +maxRetryAttempts: Int
+        +pendingCount: Int
+        +submit(record: WALRecord)
+        +submit(records: List~WALRecord~)
+        +attach(stream: AsyncStream~WALRecord~)
+        +flush() async throws
+        +close() async throws
+        +lastCommittedSequenceNumber() async throws UInt64?
+    }
+
+    class PostgresSchemaContract {
+        <<struct>>
+        +defaultTableName: String
+        +createTableSQL(tableName: String, includeNodeId: Bool) String
+        +createIndexSQL(tableName: String, includeNodeId: Bool) List~String~
+        +insertStatementSQL(tableName: String, includeNodeId: Bool) String
+        +copyCommandSQL(tableName: String, includeNodeId: Bool) String
+    }
+
     CircularEventBuffer --> RingBuffer : encapsulates
     SegmentedWALWriter --> CRC64 : verifies integrity
     SegmentedWALReader --> CRC64 : validates checksum
     ReplicationBroadcaster --> RingBuffer : delta buffer
+    WALBatchCoordinator --> WALPersistenceSink : flushes batches
+    InMemoryWALSink ..|> WALPersistenceSink : implements
+    SQLiteWALSink ..|> WALPersistenceSink : implements
+    WALBatchCoordinator ..> PostgresSchemaContract : formatted per schema
 ```
 
 ---
@@ -228,6 +306,63 @@ stateDiagram-v2
     Open --> HalfOpen: Reset timeout expires (e.g. 5.0 seconds)
     HalfOpen --> Closed: Probe request succeeds (health restored)
     HalfOpen --> Open: Probe request fails (fault persists)
+```
+
+---
+
+### 4.4 Flowchart (`flowchart TD`): Distributed Multi-Node WAL Persistence & Centralized Playback Topology
+
+```mermaid
+flowchart TD
+    subgraph EdgeNodes ["Distributed Edge / Worker Nodes"]
+        N1["Node A (Local SegmentedWALWriter)"] -->|"AsyncStream"| C1["WALBatchCoordinator A"]
+        N2["Node B (Local SegmentedWALWriter)"] -->|"AsyncStream"| C2["WALBatchCoordinator B"]
+        N3["Node C (Local SegmentedWALWriter)"] -->|"AsyncStream"| C3["WALBatchCoordinator C"]
+    end
+
+    subgraph CentralStore ["Centralized Event Storage Tier"]
+        C1 -->|"Micro-Batch (500 records / 100ms)"| PG[("PostgreSQL / TimescaleDB Hypertables")]
+        C2 -->|"Micro-Batch (500 records / 100ms)"| PG
+        C3 -->|"Micro-Batch (500 records / 100ms)"| PG
+        PG --> Meta[("Playback Session State & Bookmarks")]
+    end
+
+    subgraph PlaybackTier ["Centralized Controlled Playback Engine"]
+        PG -->|"Query Slice [t1, t2] (Node A, B, C)"| PQ["PriorityQueue (Min-Heap by Timestamp)"]
+        PQ -->|"O(log K) Chronological Interleave"| Coordinator["Distributed Playback Coordinator"]
+        Coordinator -->|"VCR Controls (Play, Step, Seek)"| Dashboard["Central Operations Dashboard"]
+    end
+```
+
+---
+
+### 4.5 Sequence Diagram (`sequenceDiagram`): Asynchronous Micro-Batch Buffering & Sink Persistence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Engine as Local Engine
+    participant Writer as SegmentedWALWriter
+    participant Coord as WALBatchCoordinator
+    participant Sink as WALPersistenceSink (Postgres)
+    participant DB as PostgreSQL Cluster
+
+    Engine->>Writer: append(payload: Data)
+    Writer->>Writer: Append 32B frame to local NVMe segment
+    Writer-->>Engine: WALRecord (immediate ACK, <20µs)
+    Writer-)Coord: emit(record) via AsyncStream
+
+    Note over Coord: Accumulate in memory buffer
+    alt Buffer count >= maxBatchSize (e.g. 500) OR Timer fires (100ms)
+        Coord->>Sink: persist(records: batch)
+        Sink->>DB: INSERT INTO meridian_wal_records ... ON CONFLICT DO NOTHING
+        DB-->>Sink: Transaction Committed
+        Sink-->>Coord: Success ACK
+        Coord->>Coord: Advance lastCommittedSequenceNumber
+    else Database Network Partition / Timeout
+        Sink-->>Coord: Network Error Thrown
+        Coord->>Coord: Exponential Backoff & Retry (preserve buffer)
+    end
 ```
 
 ---
