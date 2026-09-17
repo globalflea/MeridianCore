@@ -126,6 +126,43 @@ In a distributed topology with $N$ independent nodes generating local WAL files:
 - **Node Namespace Isolation**: Each node annotates its stream with a unique `nodeId`, ensuring sequence numbers do not collide in the centralized repository.
 - **$K$-Way Chronological Merge**: For centralized timeline scrubbing and controlled playback, [`WALPlaybackController`](#) merges $K$ active node streams using Meridian's internal [`PriorityQueue`](#) ($O(\log K)$ min-heap by timestamp), yielding an interleaved, globally ordered event stream.
 
+### 3.4 Standalone WAL Studio & Time-Scrubbable UI Architecture
+
+To enable operational auditing, post-mortem incident playback, and telemetry diagnostics, `MeridianCore` and `MeridianUI` specify a standalone graphical inspection architecture ("WAL Studio") capable of scrubbing through gigabyte-scale Write-Ahead Logs in real time and decoding arbitrary binary payloads (JSON and gRPC / Protocol Buffers).
+
+#### 1. Memory-Bounded Random Access & Scrubbing Mechanics
+Attempting to load complete multi-gigabyte Write-Ahead Logs into RAM causes severe memory pressure and client-side Out-Of-Memory (OOM) crashes. The inspection architecture enforces strict memory bounds:
+- **Sparse Checkpoint Index (`WALIndex`)**: Rather than buffering every record in RAM, the ingestion engine builds or reads a lightweight sparse B-Tree index mapping every $K$-th record (e.g. every 1,000 records or 5 MB of log space) from `(timestamp, sequenceNumber)` to `fileOffsetBytes`. Seeking to any point in the timeline executes an $O(\log N)$ binary search, followed by a direct file seek on the POSIX file descriptor.
+- **Dual Scrubbing Semantics**:
+  - **Wall-Clock Time Mode ($\Delta t$)**: The playhead moves continuously according to physical elapsed timestamps. Idle intervals where no state mutations occurred appear as flat regions, exposing realistic throughput bursts, load spikes, and system pauses.
+  - **Sequence Frame Mode ($N \to N + 1$)**: The playhead advances strictly one record per tick, eliminating idle intervals. Ideal for fine-grained forensic analysis, deterministic debugging, and single-step state machine verification.
+- **VCR Transport Integration**: Bridges the actor-isolated [`WALPlaybackController`](#) (virtual clock, variable speed multipliers `0.5x` to `10.0x`, forward/backward stepping) directly with [`TimelineScrubberBar`](#) and [`TimelineScrubberModel`](#) in `MeridianUI`.
+
+#### 2. Multi-Format Payload Decoding Pipeline (JSON vs. gRPC / Protobuf)
+In `WALRecord`, the message payload is stored as raw binary `Data`. The inspector provides a pluggable decoding architecture (`WALPayloadDecoder`) to rehydrate structured schemas:
+- **JSON Payloads**: Parsed via `JSONSerialization`, formatted with syntax-colored indentation, and mapped into a collapsible, searchable tree hierarchy (`OutlineGroup`) supporting key/value text filtering.
+- **gRPC / Protocol Buffer Payloads**:
+  - **The Wire-Level Challenge**: The Protocol Buffers wire format is inherently schemaless at the byte level. Records encode numeric field tags and wire types (Varint `0`, 64-bit `1`, Length-Delimited `2`, 32-bit `5`), but omit field names, message identifiers, and enum definitions.
+  - **Schema Ingestion (`.desc` vs. `.proto`)**:
+    - *Compiled Descriptor Sets (`.desc` / `FileDescriptorSet`)*: The industry standard (employed by Postman and BloomRPC). Compiled via `protoc --descriptor_set_out=schemas.desc --include_imports *.proto`. SwiftProtobuf parses `Google_Protobuf_FileDescriptorSet` natively and instantaneously in pure Swift with zero external dependencies.
+    - *Raw `.proto` Text Ingestion*: When users drag-and-drop raw `.proto` files, the studio triggers a local `protoc` subprocess in the background to emit an ephemeral `.desc` bundle, automatically resolving internal type definitions.
+  - **The Message Type Disambiguation Problem**:
+    - Heterogeneous WAL files frequently record multiple distinct message types within the same log (e.g., `OrderSubmitted`, `TradeExecuted`, `OrderCancelled`). Because raw Protobuf wire frames do not encode message type names, the studio employs a three-tier disambiguation strategy:
+      1. *Envelope Type URLs*: Automatic resolution when payloads wrap `google.protobuf.Any` (extracting `type_url`).
+      2. *Frame Magic / Header IDs*: Mapping 16-bit or 32-bit type IDs embedded in `WALRecord.magic` or frame prefixes to registered schemas.
+      3. *Root Message Selector*: A searchable UI dropdown menu allowing the user to select the target message definition for the active record.
+- **Three-Tier Graceful Degradation Strategy**:
+  - **Tier 1 (Schema Available)**: Full JSON-style tree rendering with typed field names, decoded enum symbols, and nested sub-messages.
+  - **Tier 2 (Schema Missing / Protobuf Detected)**: Generic Wire-Level Hierarchy displaying numeric tags, wire types, and heuristic UTF-8 string detection, accompanied by an actionable prompt to upload schemas.
+  - **Tier 3 (Unknown Binary / Corrupted Payload)**: 16-byte hex dump with ASCII gutter, magic byte breakdown, and CRC-64 ECMA-182 integrity badge (Valid ✅ vs. Corrupted ⚠️).
+
+#### 3. Three-Pane Studio Layout & Component Composition
+Built using domain-agnostic `MeridianUI` primitives:
+- **Top Header Bar**: Displays global WAL metadata, total records, byte size, timestamp window, and CRC-64 integrity status.
+- **Left Virtual Stream Pane**: A high-performance virtualized `Table` or `LazyVStack` showing sequence numbers, timestamps, payload byte sizes, and message summaries.
+- **Right Detailed Inspector Pane**: Wrapped in a resizable `Panel` using `Splitter`, presenting tabbed views for Decoded Tree, Frame Headers, and Raw Hex Dump.
+- **Bottom Dock**: Houses VCR transport controls (Play, Pause, Step, Speed Multiplier) combined with `TimelineScrubberBar` rendering write-density keyframes across the elapsed duration.
+
 ---
 
 ## 4. Multi-Perspective Architectural Diagrams
@@ -249,6 +286,58 @@ classDiagram
         +copyCommandSQL(tableName: String, includeNodeId: Bool) String
     }
 
+    class WALIndex {
+        +checkpoints: BTree~UInt64, UInt64~
+        +insert(sequence: UInt64, offset: UInt64)
+        +offset(forSequence: UInt64) UInt64?
+    }
+
+    class WALPlaybackController {
+        <<actor>>
+        +cursor: Int
+        +speedMultiplier: Double
+        +recordStream: AsyncStream~WALRecord~
+        +play()
+        +pause()
+        +step(count: Int) List~WALRecord~
+        +seek(toSequence: UInt64)
+        +seek(toTimestamp: Date)
+    }
+
+    class WALPayloadDecoder {
+        <<protocol>>
+        +canDecode(payload: Data, magic: UInt32) Bool
+        +decode(payload: Data) DecodedWALMessage
+    }
+
+    class DecodedWALMessage {
+        <<enumeration>>
+        json
+        protobuf
+        rawHex
+    }
+
+    class TimelinePlaybackControlling {
+        <<protocol>>
+        +currentTime: Double
+        +totalDuration: Double
+        +isPlaying: Bool
+        +speedMultiplier: Double
+        +play()
+        +pause()
+        +seek(to: Double)
+    }
+
+    class TimelineScrubberModel {
+        +currentTime: Double
+        +totalDuration: Double
+        +isPlaying: Bool
+        +speedMultiplier: Double
+        +play()
+        +pause()
+        +seek(to: Double)
+    }
+
     CircularEventBuffer --> RingBuffer : encapsulates
     SegmentedWALWriter --> CRC64 : verifies integrity
     SegmentedWALReader --> CRC64 : validates checksum
@@ -257,6 +346,8 @@ classDiagram
     InMemoryWALSink ..|> WALPersistenceSink : implements
     SQLiteWALSink ..|> WALPersistenceSink : implements
     WALBatchCoordinator ..> PostgresSchemaContract : formatted per schema
+    WALPlaybackController --> WALIndex : seeks via checkpoints
+    TimelineScrubberModel ..|> TimelinePlaybackControlling : implements
 ```
 
 ---
@@ -367,6 +458,48 @@ sequenceDiagram
 
 ---
 
+### 4.6 Sequence Diagram (`sequenceDiagram`): Interactive Timeline Scrubbing, VCR Replay & Protobuf Decoding Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Operator
+    participant UI as WALStudioView (SwiftUI)
+    participant Model as WALStudioViewModel
+    participant Scrubber as TimelineScrubberBar (MeridianUI)
+    participant Engine as WALPlaybackController
+    participant Index as WALIndex (Sparse B-Tree)
+    participant Disk as POSIX File Handle
+    participant Decoder as WALPayloadDecoder
+
+    User->>UI: Drop WAL File + schema.desc
+    UI->>Model: load(walURL, schemaURL)
+    Model->>Index: Build Sparse Checkpoints
+    Index-->>Model: Sparse Checkpoints Ready
+    Model->>Scrubber: Configure Duration & Keyframe Densities
+
+    User->>Scrubber: Drag Playhead to Target Time T
+    Scrubber->>Model: onSeek(targetTime)
+    Model->>Engine: seek(toTimestamp: targetTime)
+    Engine->>Index: offset(forSequence: targetSeq)
+    Index-->>Engine: Byte Offset (0x01FA400)
+    Engine->>Disk: seek(to: offset) and readFrame()
+    Disk-->>Engine: Raw 32B Frame + Payload Data
+    Engine->>Engine: Verify CRC64 ECMA-182
+    Engine-->>Model: Emit WALRecord
+    Model->>Decoder: decode(payload: record.payload)
+    alt Payload is JSON
+        Decoder-->>Model: DecodedWALMessage.json
+    else Payload is Protobuf (schema.desc matched)
+        Decoder-->>Model: DecodedWALMessage.protobuf
+    else Schema Missing / Unknown
+        Decoder-->>Model: DecodedWALMessage.rawHex
+    end
+    Model-->>UI: Update Inspector & Highlight Record
+```
+
+---
+
 ## 5. Distributed Resilience Mechanics
 
 ### 5.1 Exponential Backoff with Uniform Jitter
@@ -392,6 +525,7 @@ All components in `MeridianCore` and `Resilience` pass with a **100% test pass r
 
 | Target Module | Test Suites | Total Tests | Pass Rate | Line Coverage |
 | :--- | :---: | :---: | :---: | :---: |
-| **`MeridianCore`** (DataStructures, Storage, Replication) | 11 | 58 | **100%** | **97.10%** |
+| **`MeridianCore`** (DataStructures, Storage, Replication, Sinks) | 14 | 78 | **100%** | **97.77%** |
 | **`Resilience`** (Supervisors, Outbox, Deduplicator) | 1 | 12 | **100%** | **96.40%** |
-| **Total** | **12** | **70** | **100%** | **>96.50%** |
+| **Total** | **15** | **90** | **100%** | **>97.00%** |
+
