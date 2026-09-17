@@ -25,14 +25,32 @@ public struct PriorityQueue<Element: Sendable>: Sendable {
 
     /// Initializes an empty `PriorityQueue` with a custom priority ordering closure.
     ///
-    /// - Parameter areInIncreasingOrder: Closure returning `true` if first element has higher priority than second.
     public init(sort areInIncreasingOrder: @escaping @Sendable (Element, Element) -> Bool) {
         self.areInIncreasingOrder = areInIncreasingOrder
+    }
+
+    /// Initializes a priority queue populated with elements using a custom comparator.
+    /// - Parameters:
+    ///   - elements: Initial elements to populate into the heap.
+    ///   - comparator: Priority order comparator.
+    public init(elements: [Element], comparator: @escaping @Sendable (Element, Element) -> Bool) {
+        self.areInIncreasingOrder = comparator
+        self.heap = elements
+        if heap.count > 1 {
+            for i in stride(from: (heap.count / 2) - 1, through: 0, by: -1) {
+                siftDown(from: i)
+            }
+        }
     }
 
     /// Number of elements currently stored in the priority queue.
     public var count: Int {
         return heap.count
+    }
+
+    /// All elements currently stored in the internal heap buffer.
+    public var elements: [Element] {
+        heap
     }
 
     /// Whether the priority queue contains zero elements.
@@ -125,6 +143,19 @@ extension PriorityQueue where Element: Comparable {
             self.init(comparator: { $0 < $1 })
         case .max:
             self.init(comparator: { $0 > $1 })
+        }
+    }
+
+    /// Initializes a priority queue with elements using default min-heap or max-heap ordering.
+    /// - Parameters:
+    ///   - elements: Initial elements to populate into the heap.
+    ///   - order: `.min` for min-heap (default), `.max` for max-heap.
+    public init(elements: [Element], order: PriorityOrder = .min) {
+        switch order {
+        case .min:
+            self.init(elements: elements, comparator: { $0 < $1 })
+        case .max:
+            self.init(elements: elements, comparator: { $0 > $1 })
         }
     }
 }

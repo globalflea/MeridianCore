@@ -38,6 +38,11 @@ public struct Xoshiro256StarStar: Sendable {
         self.s3 = s3
     }
 
+    /// The current 256-bit internal state tuple.
+    public var state: (s0: UInt64, s1: UInt64, s2: UInt64, s3: UInt64) {
+        (s0, s1, s2, s3)
+    }
+
     /// Generates the next pseudorandom 64-bit unsigned integer.
     public mutating func nextUInt64() -> UInt64 {
         let result = Self.rotl(s1 &* 5, 7) &* 9
