@@ -79,6 +79,11 @@ public struct MeridianMarkdownInlineView: View {
                 .font(font)
                 .underline()
                 .foregroundColor(theme.accentColor)
+
+        case .image(let alt, _):
+            return Text("🖼️ \(alt)")
+                .font(font)
+                .foregroundColor(theme.accentColor)
         }
     }
 }

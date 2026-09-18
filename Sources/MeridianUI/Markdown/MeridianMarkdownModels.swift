@@ -72,6 +72,31 @@ public struct MeridianTableData: Sendable, Hashable, Equatable {
     }
 }
 
+/// Classification of modern GitHub alert callouts (`[!NOTE]`, `[!TIP]`, etc.).
+public enum MeridianAlertKind: String, Sendable, Hashable, CaseIterable {
+    case note
+    case tip
+    case important
+    case warning
+    case caution
+
+    /// Capitalized display title for the alert banner.
+    public var title: String {
+        rawValue.uppercased()
+    }
+
+    /// SF Symbol icon name representing the alert category.
+    public var iconSystemName: String {
+        switch self {
+        case .note: return "info.circle.fill"
+        case .tip: return "lightbulb.fill"
+        case .important: return "exclamationmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .caution: return "octagon.fill"
+        }
+    }
+}
+
 /// Semantic categorization of a block-level Markdown element.
 public enum MeridianBlockKind: Sendable, Hashable, Equatable {
     /// Header line with level from 1 (`#`) to 6 (`######`).
@@ -91,6 +116,12 @@ public enum MeridianBlockKind: Sendable, Hashable, Equatable {
 
     /// Blockquote container with nesting level.
     case blockquote(indent: Int)
+
+    /// GitHub alert callout card with alert kind and markdown content.
+    case alert(kind: MeridianAlertKind, content: String)
+
+    /// Standalone image block with alt text and image URL.
+    case image(alt: String, url: String)
 
     /// Horizontal dividing rule (`---`, `***`, `___`).
     case horizontalRule
@@ -125,6 +156,9 @@ public enum MeridianInlineSpan: Sendable, Hashable, Equatable {
     /// Hyperlink anchor with display text and target URL.
     case link(text: String, url: String)
 
+    /// Embedded image with alternate text description and source URL.
+    case image(alt: String, url: String)
+
     /// Raw plain text extraction from the span.
     public var rawText: String {
         switch self {
@@ -137,6 +171,8 @@ public enum MeridianInlineSpan: Sendable, Hashable, Equatable {
             return text
         case .link(let text, _):
             return text
+        case .image(let alt, _):
+            return alt
         }
     }
 }

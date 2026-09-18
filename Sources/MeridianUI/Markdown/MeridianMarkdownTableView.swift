@@ -32,12 +32,15 @@ public struct MeridianMarkdownTableView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(data.headers.enumerated()), id: \.offset) { index, header in
                         let alignment = data.alignment(for: index)
-                        Text(header)
-                            .font(theme.bodyFont.bold())
-                            .foregroundColor(theme.text)
-                            .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 10)
+                        let headerSpans = MeridianMarkdownParser.parseInlineSpans(text: header)
+                        MeridianMarkdownInlineView(
+                            spans: headerSpans,
+                            theme: theme,
+                            baseFont: theme.bodyFont.bold()
+                        )
+                        .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
 
                         if index < data.headers.count - 1 {
                             Divider()
@@ -57,13 +60,16 @@ public struct MeridianMarkdownTableView: View {
                     ForEach(0..<data.columnCount, id: \.self) { colIndex in
                         let cellText = colIndex < row.count ? row[colIndex] : ""
                         let alignment = data.alignment(for: colIndex)
+                        let cellSpans = MeridianMarkdownParser.parseInlineSpans(text: cellText)
 
-                        Text(cellText)
-                            .font(theme.bodyFont)
-                            .foregroundColor(theme.text)
-                            .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
-                            .padding(.vertical, 7)
-                            .padding(.horizontal, 10)
+                        MeridianMarkdownInlineView(
+                            spans: cellSpans,
+                            theme: theme,
+                            baseFont: theme.bodyFont
+                        )
+                        .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
+                        .padding(.vertical, 7)
+                        .padding(.horizontal, 10)
 
                         if colIndex < data.columnCount - 1 {
                             Divider()

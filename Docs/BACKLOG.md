@@ -30,28 +30,30 @@ Comprehensive implementation backlog derived from the canonical [Markdown Cheats
 | **MD-09** | Lists | Ordered Numbered Lists | `1. item`, `2. item` | **P0** | In Progress | `MeridianMarkdownBlockView` |
 | **MD-10** | Lists | Smart Enter List Continuation | Auto-insert `• ` or `n+1.` on Enter | **P0** | In Progress | `MeridianMarkdownDocument+Editing` |
 | **MD-11** | Lists | Smart Backspace List Termination | Double Enter / Backspace clears empty bullet | **P0** | In Progress | `MeridianMarkdownDocument+Editing` |
-| **MD-12** | Lists | Nested & Indented Sub-lists | 2-4 space or Tab indentation hierarchy | **P1** | Planned | `MeridianMarkdownBlockView` |
-| **MD-13** | Task Lists | Interactive Checkboxes | `- [ ] unchecked`, `- [x] checked` | **P0** | In Progress | `MeridianMarkdownBlockView` |
-| **MD-14** | Tables | GFM Pipe Tables | `\| Header \| Header \|\n\| --- \| --- \|` | **P0** | In Progress | `MeridianMarkdownTableView` |
-| **MD-15** | Tables | Column Alignments | `:---` (Left), `:---:` (Center), `---:` (Right) | **P0** | In Progress | `MeridianMarkdownTableView` |
-| **MD-16** | Tables | Formatted Cell Contents | Bold, italics, links, and code inside cells | **P1** | Planned | `MeridianMarkdownTableView` |
-| **MD-17** | Blockquotes | Single & Multi-line Blockquotes | `> quoted text` | **P0** | In Progress | `MeridianMarkdownBlockView` |
+| **MD-12** | Lists | Nested & Indented Sub-lists | 2-4 space or Tab indentation hierarchy | **P0** | Completed | `MeridianMarkdownBlockView` |
+| **MD-13** | Task Lists | Interactive Checkboxes | `- [ ] unchecked`, `- [x] checked` | **P0** | Completed | `MeridianMarkdownBlockView` |
+| **MD-14** | Tables | GFM Pipe Tables | `\| Header \| Header \|\n\| --- \| --- \|` | **P0** | Completed | `MeridianMarkdownTableView` |
+| **MD-15** | Tables | Column Alignments | `:---` (Left), `:---:` (Center), `---:` (Right) | **P0** | Completed | `MeridianMarkdownTableView` |
+| **MD-16** | Tables | Formatted Cell Contents | Bold, italics, links, and code inside cells | **P0** | Completed | `MeridianMarkdownTableView` |
+| **MD-17** | Blockquotes | Single & Multi-line Blockquotes | `> quoted text` | **P0** | Completed | `MeridianMarkdownBlockView` |
 | **MD-18** | Blockquotes | Nested Blockquotes | `> > nested quotation` | **P1** | Planned | `MeridianMarkdownBlockView` |
-| **MD-19** | Horizontal Rules | Dividers / Page Breaks | `---`, `***`, or `___` | **P0** | In Progress | `MeridianMarkdownBlockView` |
-| **MD-20** | Code | Inline Code | `` `inline code` `` | **P0** | In Progress | `MeridianMarkdownInlineView` |
-| **MD-21** | Code | Fenced Code Blocks | ```` ```swift ... ``` ```` with lang identifier | **P0** | In Progress | `MeridianMarkdownBlockView` |
+| **MD-19** | Horizontal Rules | Dividers / Thematic Breaks | `---`, `****`, `* * *`, `_ _ _ _` | **P0** | Completed | `MeridianMarkdownBlockView` |
+| **MD-20** | Code | Inline Code | `` `inline code` `` | **P0** | Completed | `MeridianMarkdownInlineView` |
+| **MD-21** | Code | Fenced Code Blocks | ```` ```swift ... ``` ```` with lang identifier | **P0** | Completed | `MeridianMarkdownBlockView` |
 | **MD-22** | Code | Indented Code Blocks | 4 spaces or tab prefix | **P1** | Planned | `MeridianMarkdownParser` |
-| **MD-23** | Links | Inline Links with Title | `[title](url "hover title")` | **P0** | In Progress | `MeridianMarkdownInlineView` |
-| **MD-24** | Links | Autolinks & Raw URLs | `<https://apple.com>` or `https://apple.com` | **P1** | Planned | `MeridianMarkdownInlineView` |
+| **MD-23** | Links | Inline Links with Title | `[title](url "hover title")` | **P0** | Completed | `MeridianMarkdownInlineView` |
+| **MD-24** | Links | Autolinks & Raw URLs | `<https://apple.com>` or `https://apple.com` | **P0** | Completed | `MeridianMarkdownInlineView` |
 | **MD-25** | Links | Reference-style Links | `[text][id]` + `[id]: url "title"` | **P2** | Planned | `MeridianMarkdownParser` |
-| **MD-26** | Images | Inline Images | `![alt text](image-url "title")` | **P1** | Planned | `MeridianMarkdownBlockView` |
+| **MD-26** | Images | Inline Images & Standalone Blocks | `![alt text](image-url)` | **P0** | Completed | `MeridianMarkdownBlockView` |
 | **MD-27** | Images | Reference-style Images | `![alt][logo]` + `[logo]: url` | **P2** | Planned | `MeridianMarkdownParser` |
 | **MD-28** | Footnotes | Footnote Citations & Definitions | `text[^1]` + `[^1]: Footnote body` | **P2** | Planned | `MeridianMarkdownParser` |
 | **MD-29** | Inline HTML | Safe HTML tags & Entities | `<kbd>Cmd</kbd>`, `<sub>sub</sub>`, `<sup>sup</sup>` | **P2** | Planned | `MeridianMarkdownInlineView` |
 | **MD-30** | Video Embeds | YouTube / Media link previews | `[![Alt](thumb)](video-url)` | **P2** | Planned | `MeridianMarkdownBlockView` |
 | **MD-31** | Line Breaks | Soft & Hard Breaks | Two trailing spaces or backslash for `<br>` | **P1** | Planned | `MeridianMarkdownParser` |
-| **MD-32** | Themes | Obsidian Sepia Preset | `#F3EDE3` background, warm wine & terracotta | **P0** | In Progress | `MeridianMarkdownTheme` |
-| **MD-33** | Document Stats | Live Word & Character Counts | Real-time calculation in status bar | **P0** | In Progress | `MeridianMarkdownDocument` |
+| **MD-32** | Themes | Obsidian Sepia Preset | `#F3EDE3` background, warm wine & terracotta | **P0** | Completed | `MeridianMarkdownTheme` |
+| **MD-33** | Document Stats | Live Word & Character Counts | Real-time calculation in status bar | **P0** | Completed | `MeridianMarkdownDocument` |
+| **MD-34** | Alerts | Modern GitHub Alert Callouts | `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]` | **P0** | Completed | `MeridianMarkdownCalloutView` |
+| **MD-35** | Tables | Escaped Pipes & Code Pipes | `\|` and `` `|` `` unescaped in cells | **P0** | Completed | `MeridianMarkdownParser` |
 
 ---
 

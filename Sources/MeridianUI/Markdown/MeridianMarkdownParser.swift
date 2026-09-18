@@ -63,52 +63,79 @@ public enum MeridianMarkdownParser: Sendable {
             return (.paragraph, "")
         }
 
-        // Horizontal Rule: ---, ***, ___ (at least 3 characters)
-        if (trimmed == "---" || trimmed == "***" || trimmed == "___") {
+        // Calculate leading space indentation level (GFM §5.2)
+        var leadingSpaces = 0
+        for ch in line {
+            if ch == " " { leadingSpaces += 1 }
+            else if ch == "\t" { leadingSpaces += 4 }
+            else { break }
+        }
+        let indent = leadingSpaces / 2
+
+        // Thematic Break: 3+ matching -, *, or _ with optional spaces (GFM §4.1)
+        if isThematicBreak(trimmed) {
             return (.horizontalRule, "")
         }
 
-        // Headings: # through ######
+        // Standalone Image: ![alt](url) (GFM §6.7)
+        if let image = parseImageBlock(trimmed) {
+            return (.image(alt: image.alt, url: image.url), image.alt)
+        }
+
+        // Headings: # through ###### (GFM §4.2)
         if trimmed.hasPrefix("#") {
             var level = 0
             for char in trimmed {
                 if char == "#" { level += 1 } else { break }
             }
-            if level <= 6 && trimmed.count > level {
-                let index = trimmed.index(trimmed.startIndex, offsetBy: level)
-                if trimmed[index] == " " {
-                    let content = String(trimmed[trimmed.index(after: index)...])
+            if level <= 6 {
+                let afterHash = trimmed.dropFirst(level)
+                if afterHash.isEmpty {
+                    return (.header(level: level), "")
+                }
+                if afterHash.first == " " {
+                    var content = String(afterHash.dropFirst())
+                    // Strip optional trailing # closing sequence preceded by space
+                    let trimmedContent = content.trimmingCharacters(in: .whitespaces)
+                    if trimmedContent.hasSuffix("#") {
+                        var end = trimmedContent.endIndex
+                        while end > trimmedContent.startIndex && trimmedContent[trimmedContent.index(before: end)] == "#" {
+                            end = trimmedContent.index(before: end)
+                        }
+                        let beforeHash = trimmedContent[..<end]
+                        if beforeHash.hasSuffix(" ") || beforeHash.isEmpty {
+                            content = String(beforeHash).trimmingCharacters(in: .whitespaces)
+                        }
+                    }
                     return (.header(level: level), content)
                 }
             }
         }
 
-        // Blockquote: > text
+        // Blockquote / GitHub Alert: > text (GFM §5.1)
         if trimmed.hasPrefix(">") {
-            let content = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
-            return (.blockquote(indent: 0), String(content))
+            let inner = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
+            if let alert = parseAlertCallout(inner) {
+                return (.alert(kind: alert.kind, content: alert.content), alert.content)
+            }
+            return (.blockquote(indent: indent), String(inner))
         }
 
-        // Task List: - [ ] or - [x] or * [ ] or * [x]
-        if trimmed.hasPrefix("- [ ] ") || trimmed.hasPrefix("* [ ] ") {
-            let content = String(trimmed.dropFirst(6))
-            return (.taskList(isChecked: false, indent: 0), content)
-        }
-        if trimmed.hasPrefix("- [x] ") || trimmed.hasPrefix("- [X] ") ||
-           trimmed.hasPrefix("* [x] ") || trimmed.hasPrefix("* [X] ") {
-            let content = String(trimmed.dropFirst(6))
-            return (.taskList(isChecked: true, indent: 0), content)
+        // Task List: - [ ], + [ ], * [ ], 1. [ ] (GFM §5.3)
+        if let task = parseTaskPrefix(trimmed) {
+            return (.taskList(isChecked: task.isChecked, indent: indent), task.content)
         }
 
-        // Bullet List: - item, * item, + item, or empty bullet prefix
-        if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") || trimmed == "-" || trimmed == "*" || trimmed == "+" {
-            let content = line.count >= 2 ? String(line.dropFirst(2)) : ""
-            return (.bulletList(indent: 0), content)
+        // Bullet List: - item, * item, + item, or empty bullet marker (GFM §5.2)
+        if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") ||
+           trimmed == "-" || trimmed == "*" || trimmed == "+" {
+            let content = trimmed.count >= 2 ? String(trimmed.dropFirst(2)) : ""
+            return (.bulletList(indent: indent), content)
         }
 
-        // Numbered List: 1. item or empty 1. prefix
-        if let (number, content) = parseNumberedListPrefix(line) {
-            return (.numberedList(index: number, indent: 0), content)
+        // Numbered List: 1. item or empty 1. prefix (GFM §5.2)
+        if let (number, content) = parseNumberedListPrefix(trimmed) {
+            return (.numberedList(index: number, indent: indent), content)
         }
 
         // Default: Paragraph
@@ -172,12 +199,41 @@ public enum MeridianMarkdownParser: Sendable {
         return (block, consumed)
     }
 
-    /// Splits a table row string into trimmed cells, ignoring leading and trailing pipes.
+    /// Splits a table row into trimmed cells, respecting escaped pipes (`\|`) and code spans.
     public static func splitTableRow(_ row: String) -> [String] {
-        var s = row.trimmingCharacters(in: .whitespaces)
-        if s.hasPrefix("|") { s.removeFirst() }
-        if s.hasSuffix("|") { s.removeLast() }
-        return s.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        var text = row.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("|") { text.removeFirst() }
+        if text.hasSuffix("|") && !text.hasSuffix("\\|") { text.removeLast() }
+
+        var cells: [String] = []
+        var currentCell = ""
+        var inCode = false
+        var isEscaped = false
+
+        for char in text {
+            if isEscaped {
+                if char == "|" {
+                    currentCell.append("|") // Unescape escaped pipe
+                } else {
+                    currentCell.append("\\")
+                    currentCell.append(char)
+                }
+                isEscaped = false
+            } else if char == "\\" {
+                isEscaped = true
+            } else if char == "`" {
+                inCode.toggle()
+                currentCell.append("`")
+            } else if char == "|" && !inCode {
+                cells.append(currentCell.trimmingCharacters(in: .whitespaces))
+                currentCell = ""
+            } else {
+                currentCell.append(char)
+            }
+        }
+        if isEscaped { currentCell.append("\\") }
+        cells.append(currentCell.trimmingCharacters(in: .whitespaces))
+        return cells
     }
 
     /// Parses fenced code block ```lang ... ```
@@ -203,25 +259,6 @@ public enum MeridianMarkdownParser: Sendable {
         let fullRaw = lines[startIndex..<(startIndex + consumed)].joined(separator: "\n")
         let block = MeridianMarkdownBlock(kind: .codeBlock(language: language, code: code), rawText: fullRaw)
         return (block, consumed)
-    }
-
-    private static func parseNumberedListPrefix(_ line: String) -> (Int, String)? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        var digits = ""
-        var idx = trimmed.startIndex
-        while idx < trimmed.endIndex && trimmed[idx].isNumber {
-            digits.append(trimmed[idx])
-            idx = trimmed.index(after: idx)
-        }
-        guard !digits.isEmpty, let number = Int(digits), idx < trimmed.endIndex else { return nil }
-        guard trimmed[idx] == "." else { return nil }
-        idx = trimmed.index(after: idx)
-        if idx == trimmed.endIndex {
-            return (number, "")
-        }
-        guard trimmed[idx] == " " else { return nil }
-        let content = String(trimmed[trimmed.index(after: idx)...])
-        return (number, content)
     }
 
     /// Serializes an array of blocks back into pure Markdown string losslessly.

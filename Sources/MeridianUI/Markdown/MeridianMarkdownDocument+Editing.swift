@@ -94,7 +94,7 @@ public extension MeridianMarkdownDocument {
             blocks[index].kind = .table(data: tableData)
             blocks[index].rawText = newRaw
 
-        case .header, .horizontalRule, .codeBlock, .blockquote, .paragraph:
+        case .header, .horizontalRule, .codeBlock, .blockquote, .alert, .image, .paragraph:
             // Standard block continuation: spawn paragraph below
             let newBlock = MeridianMarkdownBlock(
                 kind: .paragraph,
@@ -113,9 +113,9 @@ public extension MeridianMarkdownDocument {
 
         // If list item or header is empty or at prefix, convert back to plain paragraph
         switch currentBlock.kind {
-        case .bulletList, .numberedList, .taskList, .header, .blockquote:
+        case .bulletList, .numberedList, .taskList, .header, .blockquote, .alert:
             let trimmed = currentBlock.rawText.trimmingCharacters(in: .whitespaces)
-            if trimmed == "-" || trimmed == "*" || trimmed.hasSuffix(".") || trimmed.hasPrefix("#") || trimmed == ">" {
+            if trimmed == "-" || trimmed == "*" || trimmed.hasSuffix(".") || trimmed.hasPrefix("#") || trimmed == ">" || trimmed.hasPrefix(">[!") {
                 blocks[index].kind = .paragraph
                 blocks[index].rawText = ""
                 blocks[index].inlineSpans = []

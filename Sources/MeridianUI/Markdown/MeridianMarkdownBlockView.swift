@@ -50,16 +50,14 @@ public struct MeridianMarkdownBlockView: View {
             set: { document.updateBlock(id: block.id, newRawText: $0) }
         )
 
-        HStack(alignment: .top, spacing: 6) {
-            TextField("", text: binding, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(themeFontForActiveKind(block.kind))
-                .foregroundColor(document.theme.text)
-                .focused($isFieldFocused)
-                .onSubmit {
-                    document.handleEnter(at: block.id)
-                }
-        }
+        TextField("", text: binding, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(themeFontForActiveKind(block.kind))
+            .foregroundColor(document.theme.text)
+            .focused($isFieldFocused)
+            .onSubmit {
+                document.handleEnter(at: block.id)
+            }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -107,6 +105,12 @@ public struct MeridianMarkdownBlockView: View {
 
             case .codeBlock(let language, let code):
                 renderCodeBlock(language: language, code: code)
+
+            case .alert(let kind, let content):
+                MeridianMarkdownCalloutView(kind: kind, content: content, theme: document.theme)
+
+            case .image(let alt, let url):
+                renderImage(alt: alt, url: url)
 
             case .paragraph:
                 renderParagraph()
@@ -248,22 +252,29 @@ public struct MeridianMarkdownBlockView: View {
         }
     }
 
+    @ViewBuilder
+    private func renderImage(alt: String, url: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "photo")
+                .foregroundColor(document.theme.accentColor)
+            Text(alt.isEmpty ? url : alt)
+                .font(document.theme.bodyFont)
+                .foregroundColor(document.theme.accentColor)
+        }
+        .padding(8)
+        .background(document.theme.tableHeaderBackground.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, 4)
+    }
+
     // MARK: - Helpers
 
     private func headerFont(level: Int) -> Font {
-        switch level {
-        case 1: return document.theme.h1Font
-        case 2: return document.theme.h2Font
-        default: return document.theme.h3Font
-        }
+        level == 1 ? document.theme.h1Font : (level == 2 ? document.theme.h2Font : document.theme.h3Font)
     }
 
     private func headerColor(level: Int) -> Color {
-        switch level {
-        case 1: return document.theme.h1Color
-        case 2: return document.theme.h2Color
-        default: return document.theme.h3Color
-        }
+        level == 1 ? document.theme.h1Color : (level == 2 ? document.theme.h2Color : document.theme.h3Color)
     }
 
     private func themeFontForActiveKind(_ kind: MeridianBlockKind) -> Font {
