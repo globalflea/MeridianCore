@@ -52,7 +52,7 @@ public struct MeridianMarkdownBlockView: View {
 
         TextField("", text: binding, axis: .vertical)
             .textFieldStyle(.plain)
-            .font(themeFontForActiveKind(block.kind))
+            .font(document.theme.fontForBlockKind(block.kind))
             .foregroundColor(document.theme.text)
             .focused($isFieldFocused)
             .onSubmit {
@@ -67,7 +67,19 @@ public struct MeridianMarkdownBlockView: View {
             isFieldFocused = true
             #if os(macOS)
             NSApplication.shared.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async {
+                MeridianMarkdownCaretCoordinator.collapseSelectionToCaret(preferredLocation: document.pendingCaretLocation)
+            }
             #endif
+        }
+        .onChange(of: isFieldFocused) { _, focused in
+            if focused {
+                #if os(macOS)
+                DispatchQueue.main.async {
+                    MeridianMarkdownCaretCoordinator.collapseSelectionToCaret(preferredLocation: document.pendingCaretLocation)
+                }
+                #endif
+            }
         }
     }
 
@@ -118,12 +130,12 @@ public struct MeridianMarkdownBlockView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            document.activateBlock(block.id)
+        .gesture(SpatialTapGesture().onEnded { event in
+            document.activateBlock(block.id, at: event.location)
             #if os(macOS)
             NSApplication.shared.activate(ignoringOtherApps: true)
             #endif
-        }
+        })
     }
 
     // MARK: - Block Renderers
@@ -134,8 +146,8 @@ public struct MeridianMarkdownBlockView: View {
             MeridianMarkdownInlineView(
                 spans: block.inlineSpans,
                 theme: document.theme,
-                baseFont: headerFont(level: level),
-                baseColor: headerColor(level: level)
+                baseFont: document.theme.headerFont(level: level),
+                baseColor: document.theme.headerColor(level: level)
             )
 
             // H1 bottom divider line spanning full width
@@ -265,23 +277,5 @@ public struct MeridianMarkdownBlockView: View {
         .background(document.theme.tableHeaderBackground.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .padding(.vertical, 4)
-    }
-
-    // MARK: - Helpers
-
-    private func headerFont(level: Int) -> Font {
-        level == 1 ? document.theme.h1Font : (level == 2 ? document.theme.h2Font : document.theme.h3Font)
-    }
-
-    private func headerColor(level: Int) -> Color {
-        level == 1 ? document.theme.h1Color : (level == 2 ? document.theme.h2Color : document.theme.h3Color)
-    }
-
-    private func themeFontForActiveKind(_ kind: MeridianBlockKind) -> Font {
-        switch kind {
-        case .header(let level): return headerFont(level: level)
-        case .codeBlock: return document.theme.codeFont
-        default: return document.theme.bodyFont
-        }
     }
 }

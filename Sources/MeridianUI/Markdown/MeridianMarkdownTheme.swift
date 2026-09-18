@@ -189,4 +189,25 @@ public extension MeridianMarkdownTheme {
         syntaxTokenColor: Color(white: 0.5),
         isSerif: false
     )
+
+    // MARK: - Block Kind Typography Resolution
+
+    /// Returns the appropriate header font for an ATX header level (1-6).
+    public func headerFont(level: Int) -> Font {
+        level == 1 ? h1Font : (level == 2 ? h2Font : h3Font)
+    }
+
+    /// Returns the appropriate header text color for an ATX header level (1-6).
+    public func headerColor(level: Int) -> Color {
+        level == 1 ? h1Color : (level == 2 ? h2Color : h3Color)
+    }
+
+    /// Resolves the editing font for an active block kind.
+    public func fontForBlockKind(_ kind: MeridianBlockKind) -> Font {
+        switch kind {
+        case .header(let level): return headerFont(level: level)
+        case .codeBlock: return codeFont
+        default: return bodyFont
+        }
+    }
 }

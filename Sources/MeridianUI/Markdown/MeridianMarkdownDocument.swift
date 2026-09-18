@@ -24,6 +24,9 @@ public final class MeridianMarkdownDocument {
     /// The identifier of the currently focused block (showing raw markdown syntax), or `nil`.
     public var activeBlockId: UUID?
 
+    /// Coordinate of the click that triggered block activation, if any.
+    public var pendingCaretLocation: CGPoint?
+
     /// Active theme governing colors and typography.
     public var theme: MeridianMarkdownTheme
 
@@ -86,15 +89,17 @@ public final class MeridianMarkdownDocument {
         blocks.reduce(0) { $0 + $1.rawText.count }
     }
 
-    /// Activates a specific block for raw character editing.
-    public func activateBlock(_ id: UUID?) {
+    /// Activates a specific block for raw character editing, optionally at a mouse click coordinate.
+    public func activateBlock(_ id: UUID?, at location: CGPoint? = nil) {
         guard !isReadOnly else { return }
         self.activeBlockId = id
+        self.pendingCaretLocation = location
     }
 
     /// Deactivates the currently active block, triggering live-preview folding.
     public func deactivateActiveBlock() {
         self.activeBlockId = nil
+        self.pendingCaretLocation = nil
     }
 
     /// Updates the raw text of a specific block and immediately re-tokenizes its inline spans and kind.

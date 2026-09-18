@@ -91,31 +91,55 @@ public struct MeridianMarkdownDemoContentView: View {
         }
     }
 
-    /// Pre-loaded sample document demonstrating all Milestone 1 Markdown features.
+    /// Pre-loaded sample document demonstrating all supported GitHub Flavored Markdown features.
     public static let sampleMarkdown: String = """
     # Meridian Markdown Live Preview
     Welcome to **MeridianMarkdownEditor**, an *Obsidian Live Preview* replica built natively in pure Swift 6 and SwiftUI.
 
-    ## What Makes It Special
-    - **Dual-State Live Preview**: Delimiters fold away into styled typography when you click away.
-    - **Zero WebViews**: 100% native SwiftUI rendering with @Observable state management.
-    - **Smart Continuations**: Bullet lists and numbered lists automatically continue on Enter.
+    ## GitHub Flavored Markdown Callouts
+    > [!NOTE]
+    > Delimiters fold away into styled typography when you click away, and raw syntax expands on click.
 
-    ### Interactive Task Checklist
+    > [!TIP]
+    > Click any block to edit — the insertion caret is placed precisely where you clicked without selecting all text!
+
+    > [!IMPORTANT]
+    > 100% native SwiftUI rendering with @Observable state management and zero WebViews.
+
+    > [!WARNING]
+    > Raw delimiter editing is interactive; press Enter on lists to automatically continue them.
+
+    > [!CAUTION]
+    > Deleting an empty list item with Backspace automatically reverts it back to a standard paragraph.
+
+    ---
+
+    ## GFM Pipe Tables with Escaped Pipes
+    | Component | Specification | Status | Key Metric |
+    | :--- | :---: | :---: | ---: |
+    | **Parser** | GFM Compliance | `Active` | < 1ms parse |
+    | **Live Preview** | Zero WebViews | `Native` | 60/120 FPS |
+    | **Storage Engine** | SQLite WAL \\| B-Tree Index | `Verified` | Lock-free reads |
+    | **UI Canvas** | SwiftUI Vector Stack | `Verified` | Sub-pixel layout |
+
+    ---
+
+    ### Interactive Task Checklist & Sub-Tasks
     - [x] Native Swift 6 / SwiftUI component architecture
     - [x] Wine-red H1 with edge-to-edge dividing rule
-    - [x] Terracotta H2 and scaled headings
-    - [x] Cyan accent bullets and numbered auto-increment
     - [x] Interactive task checkboxes (click me to toggle!)
-    - [x] GFM pipe tables with column alignment
+      - [x] Nested sub-tasks with indentation
+      - [ ] Real-time state persistence
+    - [x] Precision caret positioning on click (no whole-block selection)
     - [ ] Export to formatted PDF and HTML
 
-    ### GFM Pipe Table Support
-    | Technology | Role | Performance | Status |
-    | :--- | :---: | ---: | :---: |
-    | Swift 6 | Foundational Engine | < 1ms parse | Active |
-    | SwiftUI | Declarative Vector Canvas | 60/120 FPS | Active |
-    | SQLite WAL | Crash-Resilient Storage | Lock-free reads | Verified |
+    ### Typographic Styling & Autolinks
+    - Rich inline styles: **bold**, *italic*, ***bold italic***, and ~~strikethrough~~
+    - Protected identifiers with underscores: `meridian_core_storage_v2` (immune to accidental italicization)
+    - Autolinks: <https://github.com> and bare https://swift.org or [Meridian Docs](https://meridian.dev)
+      1. First ordered item in a sequence
+      2. Automatically incremented numbered list item
+      3. Press Enter here to continue with item 4!
 
     ### Blockquotes & Code Blocks
     > "Simplicity is prerequisite for reliability."
@@ -123,11 +147,9 @@ public struct MeridianMarkdownDemoContentView: View {
 
     ```swift
     // Try editing this code block or adding new blocks below!
-    let editor = MeridianMarkdownEditor(initialText: "# Hello World")
+    let editor = MeridianMarkdownEditor(initialText: "# Hello World", theme: .sepia)
     ```
 
-    1. First item in an ordered sequence
-    2. Second item automatically incremented on Enter
-    3. Try pressing Enter here to create item 4!
+    ![Meridian Architecture Engine](https://raw.githubusercontent.com/globalflea/MeridianCore/main/Docs/Images/engine.png)
     """
 }
