@@ -75,3 +75,12 @@ Comprehensive implementation backlog derived from the canonical [Markdown Cheats
   - In-place syntax folding via dynamic `NSAttributedString` attributes and custom `NSTextLayoutFragment`s.
   - Embedded interactive SwiftUI components (GFM tables, task checkboxes) via modern `NSTextAttachmentViewProvider`.
 - **Architectural Decision**: Dropped WebKit/Electron bridge (Option 3) in favor of 100% pure native Swift & TextKit 2.
+
+---
+
+## 3. Registered Defect Resolutions (GitHub Issues)
+
+| Issue ID | Title | Root Cause Summary | Resolution & Commit | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| [#2](https://github.com/globalflea/MeridianCore/issues/2) | [Bug] MeridianMarkdownEditor: Interactive Editing Activation, Default Block State & Theme Resetting | Blocks initialized in active edit mode displaying raw `#`; theme selection was overwritten by parent redraws; block click hitbox was constrained to text. | Default document blocks initialize folded; theme decoupled into `@State` binding; `.contentShape(Rectangle())` added to full-width block tap targets. Commit `c158d04`. | **Resolved & Closed** |
+| [#3](https://github.com/globalflea/MeridianCore/issues/3) | [Bug] MeridianMarkdownDemo: macOS CLI Binary Lacks Regular Activation Policy Causing Keystrokes to Route to Terminal | SPM command-line executable launched without `.app` bundle, causing macOS to treat it as accessory/background process where keystrokes route to Terminal `stdin`. | Added `NSApplication.shared.setActivationPolicy(.regular)` and `activate(ignoringOtherApps: true)` on startup, window `onAppear`, and block activation. | **Resolved** |

@@ -7,6 +7,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// Renders a single block in either active edit mode or folded live-preview mode.
 public struct MeridianMarkdownBlockView: View {
@@ -64,6 +67,9 @@ public struct MeridianMarkdownBlockView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .task {
             isFieldFocused = true
+            #if os(macOS)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            #endif
         }
     }
 
@@ -110,6 +116,9 @@ public struct MeridianMarkdownBlockView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             document.activateBlock(block.id)
+            #if os(macOS)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            #endif
         }
     }
 

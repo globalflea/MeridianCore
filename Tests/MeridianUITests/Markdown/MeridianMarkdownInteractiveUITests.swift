@@ -223,4 +223,14 @@ struct MeridianMarkdownInteractiveUITests {
         editor.document.activateBlock(editor.document.blocks[0].id)
         #expect(editor.document.activeBlockId == editor.document.blocks[0].id)
     }
+
+    @Test("Regression Issue #3: Application activation policy is regular on macOS")
+    @MainActor
+    func testAppActivationPolicyAndFocusOnMacOS() throws {
+        #if os(macOS)
+        let policySet = NSApplication.shared.setActivationPolicy(.regular)
+        #expect(policySet == true)
+        #expect(NSApplication.shared.activationPolicy() == .regular)
+        #endif
+    }
 }

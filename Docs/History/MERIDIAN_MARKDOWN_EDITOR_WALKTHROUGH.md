@@ -92,3 +92,17 @@ MeridianMarkdownDocument.swift                  90.00%
 TOTAL                                           95.82%
 ```
 Code coverage for the new Markdown subsystem exceeds the **>95.00%** threshold.
+
+---
+
+## 4. Defect Resolutions & Stability Hardening
+
+### Issue #2: Initial Block State, Theme Resetting & Block Click Hitbox
+- **RCA**: Blocks were created in active raw mode (`activeBlockId = firstBlock.id`), showing raw `#` delimiters; theme was a plain `@State` in the parent view re-evaluating to default on rebuilds; block click hitbox was constrained to text bounds.
+- **Resolution**: Initialized document with `activeBlockId = nil` so all blocks render folded by default; decoupled theme into a proper `@Binding` property on `MeridianMarkdownEditor`; added `.contentShape(Rectangle())` to block click hitboxes.
+- **Commit**: `c158d04` (Fixes #2).
+
+### Issue #3: macOS CLI Binary Activation Policy & Terminal Keystroke Interception
+- **RCA**: Command-line executables launched via `swift run MeridianMarkdownDemo` run without an `.app` bundle or `Info.plist`. macOS defaults their activation policy to non-regular (`.accessory`/`.prohibited`), keeping Terminal.app frontmost so keystrokes route to Terminal `stdin` rather than the SwiftUI window.
+- **Resolution**: Configured `NSApplication.shared.setActivationPolicy(.regular)` and `activate(ignoringOtherApps: true)` during `MeridianMarkdownDemoApp.init()`, window `.onAppear`, and on block activation.
+- **Verification**: Regression test `testAppActivationPolicyAndFocusOnMacOS()` added; 100% test pass rate across 134 package tests.

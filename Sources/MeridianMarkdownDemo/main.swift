@@ -8,14 +8,34 @@
 
 import SwiftUI
 import MeridianUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// Root entry point for the standalone macOS Markdown editor demo application.
 @main
 struct MeridianMarkdownDemoApp: App {
+
+    init() {
+        #if os(macOS)
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup("Meridian Markdown Live-Preview Editor") {
             MeridianMarkdownDemoContentView()
                 .frame(minWidth: 920, minHeight: 720)
+                .onAppear {
+                    #if os(macOS)
+                    NSApplication.shared.setActivationPolicy(.regular)
+                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    DispatchQueue.main.async {
+                        NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                    }
+                    #endif
+                }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
