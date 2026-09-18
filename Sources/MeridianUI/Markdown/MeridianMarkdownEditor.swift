@@ -19,6 +19,11 @@ public struct MeridianMarkdownEditor: View {
         self.document = document
     }
 
+    /// Initializes the editor directly from raw Markdown text and theme.
+    public init(initialText: String = "", theme: MeridianMarkdownTheme = .sepia) {
+        self.document = MeridianMarkdownDocument(initialMarkdown: initialText, theme: theme)
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             topNavigationBar

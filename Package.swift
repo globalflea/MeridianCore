@@ -44,6 +44,11 @@ let package = Package(
             name: "MeridianUI",
             targets: ["MeridianUI"]
         ),
+        // Interactive macOS Markdown Live-Preview Demo Application
+        .executable(
+            name: "MeridianMarkdownDemo",
+            targets: ["MeridianMarkdownDemo"]
+        ),
     ],
     dependencies: [],
     targets: [
@@ -95,6 +100,14 @@ let package = Package(
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ]
         ),
+        .executableTarget(
+            name: "MeridianMarkdownDemo",
+            dependencies: ["MeridianUI"],
+            path: "Sources/MeridianMarkdownDemo",
+            swiftSettings: [
+                .enableUpcomingFeature("ApproachableConcurrency"),
+            ]
+        ),
         .testTarget(
             name: "MeridianCoreTests",
             dependencies: ["MeridianCore"],
@@ -137,7 +150,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MeridianUITests",
-            dependencies: ["MeridianUI"],
+            dependencies: ["MeridianUI", "MeridianMarkdownDemo"],
             path: "Tests/MeridianUITests",
             swiftSettings: [
                 .enableUpcomingFeature("ApproachableConcurrency"),
