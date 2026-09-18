@@ -106,6 +106,38 @@ public extension MeridianMarkdownDocument {
         }
     }
 
+    /// Deletes an empty block and transitions focus to the neighboring block.
+    ///
+    /// - Parameters:
+    ///   - blockId: The identifier of the block to delete.
+    ///   - direction: Whether triggered by backward delete (Backspace) or forward delete (Delete key).
+    /// - Returns: `true` if the block was deleted or reset, `false` otherwise.
+    @discardableResult
+    func deleteEmptyBlock(at blockId: UUID, direction: MeridianDeleteDirection = .backward) -> Bool {
+        guard let index = blocks.firstIndex(where: { $0.id == blockId }) else { return false }
+        let block = blocks[index]
+        guard block.rawText.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+
+        if blocks.count > 1 {
+            blocks.remove(at: index)
+            switch direction {
+            case .backward:
+                let targetIndex = index > 0 ? index - 1 : 0
+                self.activeBlockId = blocks[targetIndex].id
+            case .forward:
+                let targetIndex = index < blocks.count ? index : blocks.count - 1
+                self.activeBlockId = blocks[targetIndex].id
+            }
+            return true
+        } else {
+            blocks[0].kind = .paragraph
+            blocks[0].rawText = ""
+            blocks[0].inlineSpans = []
+            self.activeBlockId = blocks[0].id
+            return true
+        }
+    }
+
     /// Handles Backspace pressed at the beginning of a block.
     func handleBackspace(at blockId: UUID) {
         guard let index = blocks.firstIndex(where: { $0.id == blockId }) else { return }
@@ -125,12 +157,9 @@ public extension MeridianMarkdownDocument {
             break
         }
 
-        // If block is completely empty and there is a preceding block, delete it and focus previous
-        if currentBlock.rawText.isEmpty && blocks.count > 1 {
-            let previousIndex = max(0, index - 1)
-            let previousId = blocks[previousIndex].id
-            blocks.remove(at: index)
-            self.activeBlockId = previousId
+        // If block is empty, delete it
+        if currentBlock.rawText.trimmingCharacters(in: .whitespaces).isEmpty {
+            deleteEmptyBlock(at: blockId, direction: .backward)
         }
     }
 

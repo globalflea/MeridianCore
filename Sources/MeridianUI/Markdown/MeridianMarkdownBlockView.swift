@@ -58,6 +58,20 @@ public struct MeridianMarkdownBlockView: View {
             .onSubmit {
                 document.handleEnter(at: block.id)
             }
+            .onKeyPress(.delete) {
+                if block.rawText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    document.deleteEmptyBlock(at: block.id, direction: .backward)
+                    return .handled
+                }
+                return .ignored
+            }
+            .onKeyPress(.deleteForward) {
+                if block.rawText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    document.deleteEmptyBlock(at: block.id, direction: .forward)
+                    return .handled
+                }
+                return .ignored
+            }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, alignment: .leading)

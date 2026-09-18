@@ -210,3 +210,11 @@ public struct MeridianMarkdownBlock: Identifiable, Sendable, Hashable, Equatable
         self.inlineSpans = inlineSpans
     }
 }
+
+/// Direction of a block deletion action triggered by keyboard shortcuts.
+public enum MeridianDeleteDirection: Sendable, Hashable, CaseIterable {
+    /// Backward delete (Backspace key).
+    case backward
+    /// Forward delete (Delete key).
+    case forward
+}

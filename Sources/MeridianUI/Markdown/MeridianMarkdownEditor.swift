@@ -14,6 +14,9 @@ import SwiftUI
 public struct MeridianMarkdownEditor: View {
     @State private var internalDocument: MeridianMarkdownDocument?
     private let externalDocument: MeridianMarkdownDocument?
+    #if os(macOS)
+    @State private var keyMonitor: Any?
+    #endif
 
     /// Active document reference.
     public var document: MeridianMarkdownDocument {
@@ -47,6 +50,15 @@ public struct MeridianMarkdownEditor: View {
             bottomStatusBar
         }
         .background(document.theme.background)
+        #if os(macOS)
+        .onAppear {
+            keyMonitor = MeridianMarkdownCaretCoordinator.installEmptyBlockKeyMonitor(for: document)
+        }
+        .onDisappear {
+            MeridianMarkdownCaretCoordinator.removeEmptyBlockKeyMonitor(keyMonitor)
+            keyMonitor = nil
+        }
+        #endif
     }
 
     // MARK: - Top Navigation Bar

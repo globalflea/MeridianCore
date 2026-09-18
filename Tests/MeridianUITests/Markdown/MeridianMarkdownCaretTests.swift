@@ -185,4 +185,101 @@ struct MeridianMarkdownCaretTests {
         #expect(blocks.contains(where: { if case .codeBlock = $0.kind { return true }; return false }))
         #expect(blocks.contains(where: { if case .image = $0.kind { return true }; return false }))
     }
+
+    @Test("Empty Block Deletion: Backspace deletes middle, first, and last empty blocks")
+    @MainActor
+    func testDeleteEmptyBlockBackspace() throws {
+        // Middle block empty
+        let doc = MeridianMarkdownDocument(initialMarkdown: "Block 1\n\nBlock 3")
+        #expect(doc.blocks.count == 3)
+        let emptyBlockId = doc.blocks[1].id
+        doc.activateBlock(emptyBlockId)
+
+        let deleted = doc.deleteEmptyBlock(at: emptyBlockId, direction: .backward)
+        #expect(deleted == true)
+        #expect(doc.blocks.count == 2)
+        #expect(doc.blocks[0].rawText == "Block 1")
+        #expect(doc.blocks[1].rawText == "Block 3")
+        #expect(doc.activeBlockId == doc.blocks[0].id)
+
+        // First block empty
+        let doc2 = MeridianMarkdownDocument(initialMarkdown: "\nBlock 2")
+        #expect(doc2.blocks.count == 2)
+        let firstEmptyId = doc2.blocks[0].id
+        doc2.activateBlock(firstEmptyId)
+
+        let deletedFirst = doc2.deleteEmptyBlock(at: firstEmptyId, direction: .backward)
+        #expect(deletedFirst == true)
+        #expect(doc2.blocks.count == 1)
+        #expect(doc2.blocks[0].rawText == "Block 2")
+        #expect(doc2.activeBlockId == doc2.blocks[0].id)
+
+        // Non-empty block is NOT deleted
+        let nonDeleted = doc2.deleteEmptyBlock(at: doc2.blocks[0].id, direction: .backward)
+        #expect(nonDeleted == false)
+        #expect(doc2.blocks.count == 1)
+    }
+
+    @Test("Empty Block Deletion: Delete key (forward) deletes block and focuses next")
+    @MainActor
+    func testDeleteEmptyBlockForward() throws {
+        let doc = MeridianMarkdownDocument(initialMarkdown: "Block 1\n\nBlock 3")
+        let emptyId = doc.blocks[1].id
+        doc.activateBlock(emptyId)
+
+        let deleted = doc.deleteEmptyBlock(at: emptyId, direction: .forward)
+        #expect(deleted == true)
+        #expect(doc.blocks.count == 2)
+        #expect(doc.blocks[0].rawText == "Block 1")
+        #expect(doc.blocks[1].rawText == "Block 3")
+        #expect(doc.activeBlockId == doc.blocks[1].id)
+
+        // Whitespace-only block is treated as empty
+        doc.blocks.append(MeridianMarkdownBlock(kind: .paragraph, rawText: "   "))
+        let wsId = doc.blocks[2].id
+        let deletedWS = doc.deleteEmptyBlock(at: wsId, direction: .forward)
+        #expect(deletedWS == true)
+        #expect(doc.blocks.count == 2)
+    }
+
+    #if os(macOS)
+    @Test("Empty Block Key Monitor: Lifecycle installs, processes events, and removes cleanly")
+    @MainActor
+    func testEmptyBlockKeyMonitorLifecycle() throws {
+        let doc = MeridianMarkdownDocument(initialMarkdown: "Block 1\n\nBlock 3")
+        let monitor = MeridianMarkdownCaretCoordinator.installEmptyBlockKeyMonitor(for: doc)
+        #expect(monitor != nil)
+        MeridianMarkdownCaretCoordinator.removeEmptyBlockKeyMonitor(monitor)
+
+        let emptyId = doc.blocks[1].id
+        doc.activateBlock(emptyId)
+
+        // 1. Backspace (keyCode 51) on empty block -> handled (returns nil)
+        if let backspaceEvent = NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, characters: "\u{7F}", charactersIgnoringModifiers: "\u{7F}",
+            isARepeat: false, keyCode: 51
+        ) {
+            let result = MeridianMarkdownCaretCoordinator.handleKeyEventForEmptyBlock(backspaceEvent, document: doc)
+            #expect(result == nil)
+            #expect(doc.blocks.count == 2)
+        }
+
+        // 2. Normal key (keyCode 0) -> untouched (returns event)
+        if let charEvent = NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, characters: "a", charactersIgnoringModifiers: "a",
+            isARepeat: false, keyCode: 0
+        ) {
+            let result = MeridianMarkdownCaretCoordinator.handleKeyEventForEmptyBlock(charEvent, document: doc)
+            #expect(result != nil)
+        }
+
+        // 3. handleBackspace on empty block
+        let doc3 = MeridianMarkdownDocument(initialMarkdown: "A\n\nB")
+        doc3.activateBlock(doc3.blocks[1].id)
+        doc3.handleBackspace(at: doc3.blocks[1].id)
+        #expect(doc3.blocks.count == 2)
+    }
+    #endif
 }

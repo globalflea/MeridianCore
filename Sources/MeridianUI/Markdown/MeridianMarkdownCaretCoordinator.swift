@@ -74,6 +74,46 @@ public struct MeridianMarkdownCaretCoordinator: Sendable {
         }
         return (textView.string as NSString).length
     }
+
+    /// Installs a local key event monitor that intercepts Backspace (0x33) and Delete (0x75)
+    /// specifically when the active Markdown block is completely empty.
+    ///
+    /// Processes a key event for empty block deletion.
+    /// Returns `nil` if the event was handled and consumed, or the original event if unhandled.
+    @MainActor
+    public static func handleKeyEventForEmptyBlock(_ event: NSEvent, document: MeridianMarkdownDocument) -> NSEvent? {
+        guard event.keyCode == 51 || event.keyCode == 117 else {
+            return event
+        }
+        guard let activeId = document.activeBlockId,
+              let block = document.blocks.first(where: { $0.id == activeId }),
+              block.rawText.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return event
+        }
+        let direction: MeridianDeleteDirection = event.keyCode == 117 ? .forward : .backward
+        let deleted = document.deleteEmptyBlock(at: activeId, direction: direction)
+        return deleted ? nil : event
+    }
+
+    /// Installs a local key event monitor that intercepts Backspace (0x33) and Delete (0x75)
+    /// specifically when the active Markdown block is completely empty.
+    ///
+    /// - Parameter document: The active document model.
+    /// - Returns: The event monitor token, or `nil` if installation failed.
+    @MainActor
+    public static func installEmptyBlockKeyMonitor(for document: MeridianMarkdownDocument) -> Any? {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyEventForEmptyBlock(event, document: document)
+        }
+    }
+
+    /// Removes an event monitor token previously created with `installEmptyBlockKeyMonitor`.
+    @MainActor
+    public static func removeEmptyBlockKeyMonitor(_ monitor: Any?) {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
     #endif
 
     /// Pure-function character index estimator used for headless tests and coordinate fallback.
