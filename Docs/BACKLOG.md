@@ -66,3 +66,12 @@ Comprehensive implementation backlog derived from the canonical [Markdown Cheats
 
 ### Milestone 3: Reference Citations, Footnotes & HTML Elements
 - **Included**: MD-25, MD-27, MD-28, MD-29, MD-30.
+
+### Milestone 4: TextKit 2 Single-Buffer Architecture (True CodeMirror 6 Parity)
+- **Goal**: Full native Apple platform equivalent of CodeMirror 6's continuous-buffer live preview.
+- **Core Architecture**:
+  - Replace block-decoupled view trees with a single continuous text buffer backed by TextKit 2 (`NSTextContentStorage`, `NSTextLayoutManager`, `NSTextContainer`).
+  - Single caret, uninterrupted multi-line drag selection, and native macOS spellcheck/IME/dictation.
+  - In-place syntax folding via dynamic `NSAttributedString` attributes and custom `NSTextLayoutFragment`s.
+  - Embedded interactive SwiftUI components (GFM tables, task checkboxes) via modern `NSTextAttachmentViewProvider`.
+- **Architectural Decision**: Dropped WebKit/Electron bridge (Option 3) in favor of 100% pure native Swift & TextKit 2.

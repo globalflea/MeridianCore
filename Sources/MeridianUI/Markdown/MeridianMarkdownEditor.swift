@@ -12,16 +12,24 @@ import SwiftUI
 ///
 /// Features a customizable theme, auto-continuing lists, GFM tables, and status analytics.
 public struct MeridianMarkdownEditor: View {
-    @Bindable public var document: MeridianMarkdownDocument
+    @State private var internalDocument: MeridianMarkdownDocument?
+    private let externalDocument: MeridianMarkdownDocument?
+
+    /// Active document reference.
+    public var document: MeridianMarkdownDocument {
+        externalDocument ?? internalDocument!
+    }
 
     /// Initializes the editor with an observable document.
     public init(document: MeridianMarkdownDocument) {
-        self.document = document
+        self.externalDocument = document
+        self._internalDocument = State(initialValue: nil)
     }
 
-    /// Initializes the editor directly from raw Markdown text and theme.
+    /// Initializes the editor directly from raw Markdown text and theme, preserved across redraws.
     public init(initialText: String = "", theme: MeridianMarkdownTheme = .sepia) {
-        self.document = MeridianMarkdownDocument(initialMarkdown: initialText, theme: theme)
+        self.externalDocument = nil
+        self._internalDocument = State(initialValue: MeridianMarkdownDocument(initialMarkdown: initialText, theme: theme))
     }
 
     public var body: some View {
@@ -44,7 +52,8 @@ public struct MeridianMarkdownEditor: View {
     // MARK: - Top Navigation Bar
 
     private var topNavigationBar: some View {
-        HStack(spacing: 12) {
+        @Bindable var doc = document
+        return HStack(spacing: 12) {
             // Navigation chevrons
             HStack(spacing: 6) {
                 Button(action: {}) {
@@ -65,7 +74,7 @@ public struct MeridianMarkdownEditor: View {
             Spacer()
 
             // Document Title
-            TextField("Untitled", text: $document.title)
+            TextField("Untitled", text: $doc.title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium, design: document.theme.isSerif ? .serif : .default))
                 .foregroundColor(document.theme.text)

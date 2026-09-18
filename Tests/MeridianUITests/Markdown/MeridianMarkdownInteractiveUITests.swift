@@ -179,4 +179,48 @@ struct MeridianMarkdownInteractiveUITests {
         #expect(image != nil)
         #expect(image?.size.width ?? 0 > 0)
     }
+
+    @Test("Regression Issue #2: Document initializes with no active block (folded tags)")
+    @MainActor
+    func testDocumentInitializesWithNoActiveBlock() throws {
+        let doc = MeridianMarkdownDocument(initialMarkdown: "# Initial Title\nParagraph text")
+        #expect(doc.activeBlockId == nil)
+        guard case .header(let level) = doc.blocks[0].kind else {
+            Issue.record("Expected first block to be header")
+            return
+        }
+        #expect(level == 1)
+    }
+
+    @Test("Regression Issue #2: Theme is strictly preserved across block activation and editing")
+    @MainActor
+    func testThemePreservedAcrossActivationAndEditing() throws {
+        let doc = MeridianMarkdownDocument(initialMarkdown: "# Initial Title\nItem", theme: .light)
+        #expect(doc.theme.isSerif == false)
+
+        // Activate block
+        doc.activateBlock(doc.blocks[0].id)
+        #expect(doc.activeBlockId == doc.blocks[0].id)
+        #expect(doc.theme.isSerif == false)
+
+        // Update text
+        doc.updateBlock(id: doc.blocks[0].id, newRawText: "# Updated Title")
+        #expect(doc.theme.isSerif == false)
+
+        // Deactivate block
+        doc.deactivateActiveBlock()
+        #expect(doc.activeBlockId == nil)
+        #expect(doc.theme.isSerif == false)
+    }
+
+    @Test("Regression Issue #2: Standalone editor preserves internal state across redraws")
+    @MainActor
+    func testStandaloneEditorStatePreservation() throws {
+        let editor = MeridianMarkdownEditor(initialText: "# Title", theme: .dark)
+        #expect(editor.document.theme.isSerif == false)
+        #expect(editor.document.activeBlockId == nil)
+
+        editor.document.activateBlock(editor.document.blocks[0].id)
+        #expect(editor.document.activeBlockId == editor.document.blocks[0].id)
+    }
 }

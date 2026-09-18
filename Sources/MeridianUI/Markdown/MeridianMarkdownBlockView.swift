@@ -41,7 +41,9 @@ public struct MeridianMarkdownBlockView: View {
     @ViewBuilder
     private var activeEditorView: some View {
         let binding = Binding<String>(
-            get: { block.rawText },
+            get: {
+                document.blocks.first(where: { $0.id == block.id })?.rawText ?? block.rawText
+            },
             set: { document.updateBlock(id: block.id, newRawText: $0) }
         )
 
@@ -54,14 +56,15 @@ public struct MeridianMarkdownBlockView: View {
                 .onSubmit {
                     document.handleEnter(at: block.id)
                 }
-                .onAppear {
-                    isFieldFocused = true
-                }
         }
         .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .background(document.theme.tableHeaderBackground.opacity(0.4))
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(document.theme.tableHeaderBackground.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 4))
+        .task {
+            isFieldFocused = true
+        }
     }
 
     // MARK: - Inactive Folded View
@@ -103,6 +106,7 @@ public struct MeridianMarkdownBlockView: View {
                 renderParagraph()
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture {
             document.activateBlock(block.id)
@@ -164,11 +168,13 @@ public struct MeridianMarkdownBlockView: View {
     @ViewBuilder
     private func renderTaskList(isChecked: Bool, indent: Int) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-                .foregroundColor(document.theme.accentColor)
-                .onTapGesture {
-                    document.toggleTask(blockId: block.id)
-                }
+            Button {
+                document.toggleTask(blockId: block.id)
+            } label: {
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundColor(document.theme.accentColor)
+            }
+            .buttonStyle(.plain)
 
             MeridianMarkdownInlineView(
                 spans: block.inlineSpans,

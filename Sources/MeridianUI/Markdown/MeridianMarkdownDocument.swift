@@ -49,7 +49,7 @@ public final class MeridianMarkdownDocument {
         self.isLivePreviewEnabled = true
         self.isReadOnly = false
         self.blocks = MeridianMarkdownParser.parseDocument(rawText: initialMarkdown)
-        self.activeBlockId = self.blocks.first?.id
+        self.activeBlockId = nil
     }
 
     /// Serializes all blocks back into a pure, standard Markdown string.

@@ -25,7 +25,10 @@ struct MeridianMarkdownDemoApp: App {
 /// Interactive container view providing the demo document and interactive controls.
 public struct MeridianMarkdownDemoContentView: View {
 
-    @State private var documentText: String = MeridianMarkdownDemoContentView.sampleMarkdown
+    @State private var document = MeridianMarkdownDocument(
+        initialMarkdown: MeridianMarkdownDemoContentView.sampleMarkdown,
+        theme: .sepia
+    )
 
     public init() {}
 
@@ -47,7 +50,8 @@ public struct MeridianMarkdownDemoContentView: View {
                 Spacer()
 
                 Button {
-                    documentText = MeridianMarkdownDemoContentView.sampleMarkdown
+                    document.markdownText = MeridianMarkdownDemoContentView.sampleMarkdown
+                    document.activeBlockId = nil
                 } label: {
                     Label("Reset Sample", systemImage: "arrow.counterclockwise")
                         .font(.system(size: 12, weight: .medium))
@@ -63,11 +67,7 @@ public struct MeridianMarkdownDemoContentView: View {
             }
 
             // Live-Preview Editor
-            MeridianMarkdownEditor(
-                initialText: documentText,
-                theme: .sepia
-            )
-            .id(documentText)
+            MeridianMarkdownEditor(document: document)
         }
     }
 
